@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+
+    tools {
+        maven '3.9.11'   // Make sure this is configured in Jenkins under Global Tool Configuration
+    }
+
+    triggers {
+        pollSCM('* * * * *')  // Polls Git every minute (use cautiously)
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'dev', url: 'https://github.com/awsclouddevopssre/reddy.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('SonarQube Report') {
+            steps {
+                sh 'mvn sonar:sonar'
+            }
+        }
+
+        stage('Nexus Deploy') {
+            steps {
+                sh 'mvn clean deploy'
+            }
+        }
+
+        stage('Deploy to Tomcat') {
+            steps {
+                sh '''
+                    curl -u ram:mypassword \
+                    --upload-file target/maven-web-application.war \
+                    "http://16.171.5.18:8080/manager/text/deploy?path=/maven-web-application&update=true"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                notifyBuild(currentBuild.result)
+            }
+        }
+        failure {
+            script {
+                notifyBuild(currentBuild.result)
+            }
+        }
+    }
+}
+
+// ✅ Notification function must be **outside** the pipeline block
+def notifyBuild(String buildStatus = 'STARTED') {
+    buildStatus = buildStatus ?: 'SUCCESS'
+
+    def colorCode
+    def subject = "${buildStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
+    def summary = "${subject} (${env.BUILD_URL})"
+
+    switch (buildStatus) {
+        case 'STARTED':
+            colorCode = '#FFFF00' // Yellow
+            break
+        case 'SUCCESS':
+            colorCode = '#00FF00' // Green
+            break
+        default:
+            colorCode = '#FF0000' // Red
+    }
+
+    slackSend(color: colorCode, message: summary)
+}
