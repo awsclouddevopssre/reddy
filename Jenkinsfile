@@ -25,7 +25,7 @@ node
 
       curl -u ram:mypassword \
 --upload-file /var/lib/jenkins/workspace/job_2_scrptedpl/target/maven-web-application.war \
-"http://56.228.33.165:8080/manager/text/deploy?path=/maven-web-application&update=true"
+"http://13.51.200.89:8080/manager/text/deploy?path=/maven-web-application&update=true"
           
         """
    }
